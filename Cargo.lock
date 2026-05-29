@@ -8031,7 +8031,8 @@ dependencies = [
 
 [[package]]
 name = "zkvm-interface"
-version = "1.0.0-beta"
+version = "0.1.0"
+source = "git+https://github.com/eth-act/zkvm-standards?branch=mmbugaj%2Frust-bindings-to-zkvm-interface#1fb2d52e28a561a3f2c343f6c7ef001f95bf77b8"
 dependencies = [
  "bindgen 0.72.1",
 ]

@@ -64,7 +64,6 @@ members = [
   "sdk",
   "ziskbuild",
   "definitions",
-  "zkvm-interface",
   "verifier",
 ]
 resolver = "2"
@@ -109,7 +108,7 @@ mem-planner-cpp = { path = "state-machines/mem-cpp" }
 sm-rom = { path = "state-machines/rom" }
 test-artifacts = { path = "test-artifacts" }
 ziskclib = { path = "ziskclib" }
-zkvm-interface = { path = "zkvm-interface" }
+zkvm-interface = { git = "https://github.com/eth-act/zkvm-standards", branch = "mmbugaj/rust-bindings-to-zkvm-interface" }
 ziskos = { path = "ziskos/entrypoint" }
 ziskos-hints = { path = "ziskos-hints" }
 circuit = { path = "tools/circuit" }
