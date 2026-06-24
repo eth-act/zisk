@@ -873,6 +873,44 @@ impl Proof {
 mod tests {
     use super::*;
 
+    /// Build a `PublicValues` whose first 8 slots hold the digest of `output`, exactly as the
+    /// streaming `write_output` commitment does (slot i = i-th big-endian SHA-256 state word).
+    fn publics_committing(output: &[u8]) -> PublicValues {
+        let digest = Sha256::digest(output);
+        let mut words = vec![0u64; PROGRAM_VK_LEN + ZISK_PUBLICS];
+        for i in 0..8 {
+            words[PROGRAM_VK_LEN + i] =
+                u32::from_be_bytes(digest[4 * i..4 * i + 4].try_into().unwrap()) as u64;
+        }
+        PublicValues::new_from_u64(&words)
+    }
+
+    #[test]
+    fn verify_public_output_accepts_matching_plaintext() {
+        for output in [b"".as_slice(), b"hi", b"a slightly longer public output payload"] {
+            let pv = publics_committing(output);
+            assert!(pv.verify_public_output(output), "should accept the committed plaintext");
+        }
+    }
+
+    #[test]
+    fn verify_public_output_rejects_tampered_plaintext() {
+        let pv = publics_committing(b"the real output");
+        assert!(!pv.verify_public_output(b"a forged output"));
+        assert!(!pv.verify_public_output(b"the real output!")); // one byte longer
+    }
+
+    #[test]
+    fn bind_public_output_modes() {
+        let pv = publics_committing(b"the committed output");
+        // Digest-only mode: no plaintext carried -> accepted.
+        assert!(bind_public_output(b"", &pv).is_ok());
+        // Self-contained: matching plaintext -> accepted.
+        assert!(bind_public_output(b"the committed output", &pv).is_ok());
+        // Tampered plaintext -> rejected.
+        assert!(bind_public_output(b"a different output", &pv).is_err());
+    }
+
     #[test]
     fn verify_returns_err_for_malformed_vadcop_final_minimal() {
         let result = Proof::new(

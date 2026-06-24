@@ -1955,3 +1955,63 @@ pub fn opc_halt(ctx: &mut InstContext) {
     ctx.c = 0;
     ctx.flag = false;
 }
+
+#[cfg(test)]
+mod public_output_tests {
+    use super::*;
+
+    const BASE: u64 = 0xA003_0000; // start of general-purpose writable RAM
+
+    fn ctx_with_bytes_at(offsets_and_data: &[(u64, &[u8])]) -> InstContext {
+        let mut ctx = InstContext::new();
+        ctx.mem.add_write_section(BASE, 0x1000);
+        for (off, data) in offsets_and_data {
+            for (i, &b) in data.iter().enumerate() {
+                ctx.mem.write_silent(BASE + off + i as u64, b as u64, 1);
+            }
+        }
+        ctx
+    }
+
+    fn emit_output(ctx: &mut InstContext, ptr: u64, len: u64) {
+        ctx.fcall.parameters[0] = ptr;
+        ctx.fcall.parameters[1] = len;
+        ctx.fcall.parameters_size = 2;
+        ctx.a = FCALL_PUBLIC_OUTPUT_ID as u64;
+        ctx.emulation_mode = EmulationMode::default();
+        opc_fcall(ctx);
+    }
+
+    #[test]
+    fn appends_bytes_and_returns_no_result() {
+        let data = b"hello zkvm public output!";
+        let mut ctx = ctx_with_bytes_at(&[(0, data)]);
+        emit_output(&mut ctx, BASE, data.len() as u64);
+        assert_eq!(ctx.public_output, data);
+        // Side-effecting fcall: no result is produced for the guest to read.
+        assert_eq!(ctx.fcall.result_size, 0);
+        assert_eq!(ctx.mem.free_input, 0);
+    }
+
+    #[test]
+    fn concatenates_chunks_in_call_order() {
+        let mut ctx = ctx_with_bytes_at(&[(0, b"foo"), (100, b"barbaz")]);
+        emit_output(&mut ctx, BASE, 3);
+        emit_output(&mut ctx, BASE + 100, 6);
+        assert_eq!(ctx.public_output, b"foobarbaz");
+    }
+
+    #[test]
+    fn consume_mem_reads_mode_is_a_noop() {
+        let data = b"ignored";
+        let mut ctx = ctx_with_bytes_at(&[(0, data)]);
+        ctx.fcall.parameters[0] = BASE;
+        ctx.fcall.parameters[1] = data.len() as u64;
+        ctx.fcall.parameters_size = 2;
+        ctx.a = FCALL_PUBLIC_OUTPUT_ID as u64;
+        ctx.emulation_mode = EmulationMode::ConsumeMemReads;
+        opc_fcall(&mut ctx);
+        // In replay mode the fcall does nothing; output comes from the recorded trace.
+        assert!(ctx.public_output.is_empty());
+    }
+}
